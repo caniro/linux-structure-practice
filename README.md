@@ -1,4 +1,10 @@
-# 실습과 그림으로 배우는 리눅스 구조 실습
+# 실습과 그림으로 배우는 리눅스 구조 학습 내용 + 실습 코드
+
+![커버 이미지](https://image.aladin.co.kr/product/18155/41/cover500/k842534140_1.jpg)
+
+[실습과 그림으로 배우는 리눅스 구조 - 타케우치 사토루](https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=181554153)
+
+---
 
 ## 실습 환경
 
