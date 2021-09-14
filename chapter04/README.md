@@ -566,9 +566,9 @@ bash와 zsh의 출력 형식이 약간 다르다.
   - bash
 
     ```sh
-    real	경과시간
-    user	유저모드_CPU동작시간
-    sys	  커널모드_CPU동작시간
+    real  경과시간
+    user  유저모드_CPU동작시간
+    sys   커널모드_CPU동작시간
     ```
 
   - zsh
@@ -809,3 +809,63 @@ bash와 zsh의 출력 형식이 약간 다르다.
 
 ## 우선 순위 변경
 
+### nice() 시스템 콜
+
+타임 슬라이스를 통해 여러 프로세스들을 공평하게 논리 CPU에 배정할 수 있다. 이 때 nice() 시스템 콜을 통해 프로세스 간에 우선순위를 두어, 특정 프로세스가 시간을 많이 배정받을 수 있게 할 수 있다.
+
+우선순위를 높이는 것은 root 권한을 가진 슈퍼유저만 가능하고, 내리는 것은 누구나 가능하다.
+
+우선순위는 -19 ~ 20의 값을 가질 수 있고, 숫자가 낮을 수록 우선순위가 높다. 기본 값은 0이다.
+
+### 예제
+
+- 기존의 *src/sched.c* 코드에서, 2번째 프로세스(프로세스 1)의 nice 값을 5로 변경(`nice(5)`을 추가)한 뒤 1core-2process 테스트를 진행한다.
+
+  ```sh
+  $ gcc -o output/sched_nice src/sched_nice.c
+  $ taskset -c 0 output/sched_nice 2 100 1 > log/1core-2process-nice.log
+  $ gnuplot plot/1core-2process-nice.gnu 
+  $ gnuplot plot/1core-2process-nice-slice.gnu 
+  ```
+
+  ![](image/1core-2process-nice.png)
+  ![](image/1core-2process-nice-slice.png)
+
+- 그림을 통해 우선순위가 높은 (nice 값이 작은) 프로세스의 CPU 점유 시간이 더 긴 것을 볼 수 있다.
+
+### nice 명령어
+
+- 우선순위 설정을 명령어로 수행할 수 있다.
+
+- sar 명령어의 %nice 필드는 우선순위를 변경한 프로세스에 할당한 시간의 비율을 나타낸다.
+
+  ```sh
+  $ nice -n 5 python src/loop.py &
+  [1] 7431
+  $ sar -P ALL 1 1
+  Linux 5.13.13-surface (ubun2-Surface-Pro-7)     2021년 09월 15일        _x86_64_        (8 CPU)
+
+  00시 17분 00초     CPU     %user     %nice   %system   %iowait    %steal     %idle
+  00시 17분 01초     all      2.00     12.50      0.62      0.12      0.00     84.75
+  00시 17분 01초       0      2.00      0.00      2.00      0.00      0.00     96.00
+  00시 17분 01초       1      0.00    100.00      0.00      0.00      0.00      0.00
+  00시 17분 01초       2      1.98      0.00      1.98      0.00      0.00     96.04
+  00시 17분 01초       3      3.00      0.00      0.00      0.00      0.00     97.00
+  00시 17분 01초       4      3.00      0.00      0.00      1.00      0.00     96.00
+  00시 17분 01초       5      2.00      0.00      0.00      0.00      0.00     98.00
+  00시 17분 01초       6      2.02      0.00      0.00      0.00      0.00     97.98
+  00시 17분 01초       7      2.00      0.00      1.00      0.00      0.00     97.00
+  ...
+  $ kill 7431
+  [1]  + 7431 terminated  nice -n 5 python src/loop.py  
+  ```
+
+    - 코어1의 %nice 값이 100인 것을 볼 수 있다.
+    
+    - 우선순위 5로 작동되는 무한루프가 CPU1을 계속 점유하고 있음을 나타낸다.
+
+---
+
+### 참고
+
+- [실습과 그림으로 배우는 리눅스 구조 - 타케우치 사토루](https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=181554153)
