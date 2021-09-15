@@ -8,16 +8,11 @@
 
 ## 실습 환경
 
-- Ubuntu 20.04 Multiboot mode
+- x86_64 아키텍처에서 **Ubuntu 20.04**를 호스트 OS로 사용
 
-- MSI - GL63 8rc
+- zsh 사용
 
-    |장치|사양|
-    |:-:|:-:|
-    |CPU|i5-8300h|
-    |RAM|16GB|
-
-- MS - Surface Pro 7
+- 기기명 : Microsoft - Surface Pro 7
 
     |장치|사양|
     |:-:|:-:|
