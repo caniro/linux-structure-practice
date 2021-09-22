@@ -280,7 +280,7 @@
 
   ```sh
   $ gcc -O3 -o output/cache src/cache.c
-  $ ./cache_test.sh
+  $ script/cache_test.sh
   ```
 
   *log/cache.log*
@@ -347,5 +347,104 @@ CPU에서 저장 장치에 접근하려면 굉장히 느리기 때문에 커널�
 
 - 캐시 메모리가 메모리의 데이터를 캐시 메모리에 캐싱하는 것처럼, 페이지 캐시는 저장 장치 내의 파일 데이터를 메모리에 캐싱한다.
 
-- 캐시 메모리가 캐시 라인 단위로 데이터를 다루는 것처럼, 페이지 캐시는 페이지 단위로 데이터를 다룬다.
+- 캐시 메모리가 캐시 라인 단위로 데이터를 다루는 것처럼, **페이지 캐시는 페이지 단위로 데이터를 다룬다.**
+
+- 시스템의 메모리가 허용하는 한, 각 프로세스가 페이지 캐시에 없는 파일을 읽을 때마다 페이지 캐시 사이즈가 점점 증가한다.
+
+  - 만약 시스템 메모리가 부족해지면, 커널이 페이지 캐시를 해제한다.
+
+    - 더티 플래그가 없는 페이지부터 해제하며, 그래도 부족하면 더티 페이지를 라이트 백<sub>write back</sub>한 뒤 해제한다. 이 때 저장 장치에 접근하므로 성능 저하가 발생할 수 있다.
+
+### 읽기
+
+프로세스가 파일을 읽으면, 커널 메모리 내의 페이지 캐시 영역에 데이터를 복사한 뒤 이것을 프로세스 메모리에 복사한다.
+
+- 또한 커널 메모리에는 페이지 캐시에 캐싱한 파일과 범위 등의 정보를 저장한다.
+
+- 페이지 캐시는 전체 프로세스의 공유 자원이므로, 여러 프로세스에서 같은 파일을 읽는 경우에도 속도가 향상될 수 있다.
+
+### 쓰기
+
+프로세스가 파일에 쓰기 작업을 하면, 커널은 일단 페이지 캐시에 데이터를 쓴다. 이 때 [캐시 메모리 동작과정](#캐시-메모리-동작-과정)과 같이 더티 플래그를 써넣고, 이 플래그가 있는 페이지를 더티 페이지<sub>dirty page</sub>라고 부른다.
+
+- 더티 페이지 역시 나중에 커널의 백그라운드 처리로 저장 장치에 반영되며, 저장 후 더티 플래그를 지운다.
+
+#### 쓰기 동기화
+
+- 더티 페이지가 존재하는 상태로 시스템이 꺼지면 변경된 데이터가 사라져버린다.
+
+- 따라서 중요한 파일을 열 때는, open() 시스템 콜에서 `O_SYNC` 플래그를 사용하여 수정할 때마다 동기화하여 저장 장치에도 반영하도록 한다. (write through)
+
+### 버퍼 캐시<sub>buffer cache</sub> (7장)
+
+파일시스템을 사용하지 않고 디바이스 파일을 통해 저장 장치에 직접 접근하는 방식이다.
+
+페이지 캐시와 버퍼 캐시를 합쳐서 저장 장치 안의 데이터를 메모리에 넣어둔다.
+
+### 파일 읽기 테스트
+
+1GiB 용량을 가지는 testfile을 생성한다.
+
+```sh
+$ dd if=/dev/zero of=testfile oflag=direct bs=1M count=1K
+1024+0 레코드 들어옴
+1024+0 레코드 나감
+1073741824 bytes (1.1 GB, 1.0 GiB) copied, 2.54515 s, 422 MB/s
+$ ls -al
+합계 1048624
+drwxrwxr-x 6 ubun2 ubun2       4096  9월 22 23:51 .
+drwxrwxr-x 9 ubun2 ubun2       4096  9월 18 17:18 ..
+-rw-rw-r-- 1 ubun2 ubun2      16413  9월 22 23:50 README.md
+drwxrwxr-x 2 ubun2 ubun2       4096  9월 18 22:08 log
+drwxrwxr-x 2 ubun2 ubun2       4096  9월 18 22:06 output
+drwxrwxr-x 2 ubun2 ubun2       4096  9월 22 23:50 script
+drwxrwxr-x 2 ubun2 ubun2       4096  9월 18 18:33 src
+-rw-rw-r-- 1 ubun2 ubun2 1073741824  9월 22 23:51 testfile
+```
+
+  - `oflag=direct`는 쓰기에 페이지 캐시를 사용하지 않는 옵션이다.
+
+이 시점에서 testfile 파일의 페이지 캐시는 없다. 이 상태에서 testfile을 읽는데 걸리는 시간과 메모리 사용량을 측정하면 다음과 같다.
+
+```sh
+$ free 
+              total        used        free      shared  buff/cache   available
+Mem:        7729028     1916920     3006032      710884     2806076     4818860
+스왑:     2097148           0     2097148
+$ time cat testfile > /dev/null
+cat testfile > /dev/null  0.00s user 0.50s system 44% cpu 1.117 total
+$ free
+              total        used        free      shared  buff/cache   available
+Mem:        7729028     1913976     1956100      713068     3858952     4818608
+스왑:     2097148           0     2097148
+```
+
+  - 약 1.117초가 걸렸으며, 커널은 0.5초만을 사용했다. 즉 나머지 0.617초는 저장 장치로의 접근 시간이다.
+
+  - 전후의 buff/cache 필드를 살펴보면 페이지 캐시때문에 약 1GiB정도 증가한 것을 볼 수 있다. 
+
+파일을 다시 읽으면 다음과 같다.
+
+```sh
+$ time cat testfile > /dev/null
+cat testfile > /dev/null  0.00s user 0.13s system 99% cpu 0.134 total
+$ free
+              total        used        free      shared  buff/cache   available
+Mem:        7729028     1946052     1872112      768788     3910864     4730752
+스왑:     2097148           0     2097148
+```
+  - 시간이 훨씬 줄어든 것을 볼 수 있다.
+
+  - 페이지 캐시는 아까에 비해 별 변화가 없다.
+
+또한 페이지 캐시 용량은 다음 명령어의 kbcached 필드로 확인할 수 있다. (KiB 단위)
+
+```sh
+$ sar -r 1
+Linux 5.13.13-surface (ubun2-Surface-Pro-7) 	2021년 09월 22일 	_x86_64_(8 CPU)
+
+23시 57분 55초 kbmemfree   kbavail kbmemused  %memused kbbuffers  kbcached  kbcommit   %commit  kbactive   kbinact   kbdirty
+23시 57분 56초   1909668   4768680   1850712     23.94     80212   3668120   9387676     95.54   1929640   2868344       100
+$ rm testfile
+```
 
