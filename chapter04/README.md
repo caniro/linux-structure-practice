@@ -88,7 +88,7 @@ $ gcc -o output/sched src/sched.c
   $ gnuplot plot/1core-4process.gnu
   ```
 
-- 2코어 1프로세스
+- 1코어 1프로세스
 
   ![1core-1process](image/1core-1process.png)
 
