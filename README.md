@@ -20,6 +20,8 @@
 
 ### [Chapter 7. 파일시스템](chapter07/README.md)
 
+### [Chapter 8. 저장 장치](chapter08/README.md)
+
 ---
 
 ## 실습 환경
